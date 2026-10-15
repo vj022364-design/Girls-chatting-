@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LoveConnect — Dating Demo</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#fff5fa;color:#333}
+header{background:linear-gradient(90deg,#ff4081,#8e44ad);color:#fff;padding:18px;text-align:center}
+nav{background:#fff;padding:14px;text-align:center;position:sticky;top:0}
+nav a{margin:8px;color:#e91e63;text-decoration:none;font-weight:bold}
+.hero{text-align:center;padding:40px 15px;background:#ffe0ed}.hero h2{font-size:30px;color:#d81b60}
+.btn{display:inline-block;background:#e91e63;color:#fff;padding:12px 22px;border:0;border-radius:25px;text-decoration:none;cursor:pointer;margin:5px}
+.section{padding:28px 15px;text-align:center}.profiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;max-width:1000px;margin:auto}
+.card{background:#fff;padding:18px 10px;border-radius:20px;box-shadow:0 5px 18px #00000012}
+.avatar{width:120px;height:120px;margin:auto;border-radius:50%;object-fit:cover;border:5px solid #ffe0ed;background:#ffe0ed}
+.card h3{color:#d81b60;margin:15px 0 8px}.card p{margin:8px}
+.membership{background:#fff;max-width:400px;margin:20px auto;padding:25px;border-radius:18px;box-shadow:0 3px 15px #00000015}
+.price{color:#e91e63;font-size:38px;font-weight:bold}footer{background:#302033;color:#fff;text-align:center;padding:22px}
+.notice{color:#666;font-size:12px;line-height:1.5}
+@media(min-width:700px){.profiles{grid-template-columns:repeat(4,minmax(0,1fr))}.avatar{width:130px;height:130px}}
+</style>
+</head>
+<body>
+<header><h1>💗 LoveConnect</h1><p>Meet New People • Chat • Connect</p></header>
+<nav><a href="#home">Home</a><a href="#profiles">Profiles</a><a href="#membership">Membership</a><a href="#login">Login</a></nav>
+<section class="hero" id="home"><h2>अपना नया कनेक्शन खोजें ❤️</h2><p>नए लोगों से मिलें और बातचीत शुरू करें।</p><a class="btn" href="#profiles">प्रोफाइल देखें</a><a class="btn" href="#membership">Join Now ₹299</a></section>
+<section class="section" id="profiles"><h2>💕 Girls Profiles</h2><div class="profiles" id="profileList"></div></section>
+<section class="section" id="membership"><h2>⭐ Premium Membership</h2><div class="membership"><h3>6 Months Membership</h3><div class="price">₹299</div><p>पूरे 6 महीने के लिए</p><ul style="text-align:left;line-height:2"><li>20 प्रोफाइल</li><li>Chat विकल्प (मेंबरशिप के बाद)</li><li>Voice Call विकल्प (मेंबरशिप के बाद)</li><li>Video Call विकल्प (मेंबरशिप के बाद)</li><li>मोबाइल-फ्रेंडली वेबसाइट</li></ul><button class="btn" onclick="startPayment()">Buy Membership</button><p class="notice">सुरक्षित भुगतान Razorpay Checkout के माध्यम से। भुगतान की पुष्टि सर्वर पर होगी।</p></div></section>
+<section class="section" id="login">
+  <h2>🔐 Login / Create Account</h2>
+  <div class="membership">
+    <div id="authStatus" role="status" aria-live="polite"></div>
+    <form id="registerForm">
+      <h3>Create account</h3>
+      <input id="regName" type="text" autocomplete="name" maxlength="80" placeholder="Full name" required style="width:100%;padding:12px;margin:8px 0">
+      <input id="regEmail" type="email" autocomplete="email" maxlength="254" placeholder="Email" required style="width:100%;padding:12px;margin:8px 0">
+      <input id="regPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" placeholder="Password (at least 8 characters)" required style="width:100%;padding:12px;margin:8px 0">
+      <label style="display:block;text-align:left;font-size:13px;margin:10px 0"><input id="ageConfirm" type="checkbox" required> I confirm I am 18 or older.</label>
+      <button class="btn" type="submit">Create Account</button>
+    </form>
+    <hr style="margin:22px 0">
+    <form id="loginForm">
+      <h3>Login</h3>
+      <input id="loginEmail" type="email" autocomplete="email" maxlength="254" placeholder="Email" required style="width:100%;padding:12px;margin:8px 0">
+      <input id="loginPassword" type="password" autocomplete="current-password" maxlength="128" placeholder="Password" required style="width:100%;padding:12px;margin:8px 0">
+      <button class="btn" type="submit">Login</button>
+    </form>
+    <button id="logoutBtn" class="btn" type="button" hidden>Logout</button>
+    <p class="notice">Use a unique password. Your password is stored as a secure hash, not plain text.</p>
+  </div>
+</section>
+<footer><h3>💗 LoveConnect</h3><p>केवल 18+ यूज़र्स के लिए।</p><p class="notice">वास्तविक प्रोफाइल फोटो केवल संबंधित व्यक्ति की अनुमति से इस्तेमाल करें।</p>© 2026 LoveConnect</footer>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+let currentUser = null;
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+  });
+  const data = await response.json().catch(() => ({ error: 'Server returned an invalid response.' }));
+  if (!response.ok) throw new Error(data.error || 'Request failed.');
+  return data;
+}
+function setAuthMessage(message, isError = false) {
+  const el = document.getElementById('authStatus');
+  if (el) { el.textContent = message; el.style.color = isError ? '#b00020' : '#176b2c'; }
+}
+function refreshMembershipUI() {
+  const paid = Boolean(currentUser && currentUser.membershipActive);
+  document.querySelectorAll('.profile-open').forEach(b => b.textContent = paid ? '👤 प्रोफाइल खोलें' : '🔒 प्रोफाइल खोलें');
+}
+function renderAuthState() {
+  const status = document.getElementById('authStatus');
+  const logout = document.getElementById('logoutBtn');
+  if (currentUser) {
+    status.textContent = 'Logged in as ' + currentUser.name + (currentUser.membershipActive ? ' — Premium active' : '');
+    document.getElementById('loginForm').hidden = true;
+    document.getElementById('registerForm').hidden = true;
+    logout.hidden = false;
+  } else {
+    document.getElementById('loginForm').hidden = false;
+    document.getElementById('registerForm').hidden = false;
+    logout.hidden = true;
+  }
+  refreshMembershipUI();
+}
+document.getElementById('registerForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const result = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({
+      name: document.getElementById('regName').value.trim(),
+      email: document.getElementById('regEmail').value.trim(),
+      password: document.getElementById('regPassword').value,
+      ageConfirmed: document.getElementById('ageConfirm').checked
+    })});
+    currentUser = result.user; renderAuthState(); setAuthMessage('Account created successfully.');
+    event.target.reset();
+  } catch (e) { setAuthMessage(e.message, true); }
+});
+document.getElementById('loginForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const result = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({
+      email: document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value
+    })});
+    currentUser = result.user; renderAuthState(); setAuthMessage('Login successful.');
+    event.target.reset();
+  } catch (e) { setAuthMessage(e.message, true); }
+});
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); currentUser = null; renderAuthState(); setAuthMessage('You are logged out.'); }
+  catch (e) { setAuthMessage(e.message, true); }
+});
+async function loadCurrentUser() {
+  try { const result = await api('/api/auth/me'); currentUser = result.user; }
+  catch (_) { currentUser = null; }
+  renderAuthState();
+}
+async function startPayment() {
+  if (!currentUser) { setAuthMessage('Please create an account or log in before buying membership.', true); location.hash = '#login'; return; }
+  try {
+    const order = await api('/api/create-order', { method: 'POST', body: JSON.stringify({ plan: 'six_months' }) });
+    const options = {
+      key: order.keyId, amount: order.amount, currency: order.currency,
+      name: 'LoveConnect', description: '6 Months Membership', order_id: order.id,
+      handler: async function(response) {
+        try {
+          const result = await api('/api/verify-payment', { method: 'POST', body: JSON.stringify(response) });
+          currentUser = result.user; renderAuthState();
+          alert('Payment verified successfully! Premium membership is active.');
+        } catch (e) { alert('Payment verification failed: ' + e.message); }
+      },
+      theme: { color: '#e91e63' }
+    };
+    new Razorpay(options).open();
+  } catch (e) { alert(e.message || 'Payment could not be started. Check server setup.'); }
+}
+function openProfile(name) {
+  if (!currentUser) { alert('Please log in first.'); location.hash = '#login'; return; }
+  if (!currentUser.membershipActive) { alert('Please purchase membership to open this profile.'); location.hash = '#membership'; return; }
+  alert(name + ' profile opened. Real chat and calls are not implemented yet.');
+}
+loadCurrentUser();
+</script>
+</body></html>
